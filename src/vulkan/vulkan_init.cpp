@@ -121,15 +121,6 @@ static bool initVulkanDebugUtils(vulkan_init_parameters init_params, vulkan_obje
 	return true;
 }
 
-struct QueueFamilyIndices {
-	std::optional<uint32_t> graphicsFamily;
-	std::optional<uint32_t> presentFamily;
-
-	bool isComplete() {
-		return graphicsFamily.has_value() && presentFamily.has_value();
-	}
-};
-
 QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface) {
 	QueueFamilyIndices indices;
 
@@ -282,6 +273,7 @@ static bool init_physical_device(vulkan_init_parameters init_params, vulkan_obje
 
 static bool init_device_and_queue(vulkan_init_parameters init_params, vulkan_objects* objects) {
 	QueueFamilyIndices indices = findQueueFamilies(objects->physicalDevice, objects->surface);
+	objects->indices = indices;
 
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
 	std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
@@ -394,6 +386,7 @@ static bool init_image_views(vulkan_init_parameters init_params, vulkan_objects*
         VkImageViewCreateInfo createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         createInfo.image = objects->swapchainImages[i];
+		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         createInfo.format = objects->swapchainImageFormat;
         createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
         createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -441,6 +434,10 @@ bool init_vulkan(vulkan_init_parameters init_params, vulkan_objects* objects) {
 	if (!init_swapchain(init_params, objects)) {
         return false;
     }
+
+	if (!init_image_views(init_params, objects)) {
+		return false;
+	}
 	
 	return true;
 }

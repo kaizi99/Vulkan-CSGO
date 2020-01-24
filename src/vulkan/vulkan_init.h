@@ -4,6 +4,16 @@
 #include <GLFW/glfw3.h>
 
 #include <vector>
+#include <optional>
+
+struct QueueFamilyIndices {
+	std::optional<uint32_t> graphicsFamily;
+	std::optional<uint32_t> presentFamily;
+
+	bool isComplete() {
+		return graphicsFamily.has_value() && presentFamily.has_value();
+	}
+};
 
 struct vulkan_objects {
 	VkInstance instance;
@@ -11,6 +21,7 @@ struct vulkan_objects {
 	VkSurfaceKHR surface;
 	VkPhysicalDevice physicalDevice;
 	VkDevice device;
+	QueueFamilyIndices indices;
 	VkQueue graphicsQueue;
 	VkQueue presentQueue;
 	VkSwapchainKHR swapchain;
@@ -18,7 +29,6 @@ struct vulkan_objects {
 	VkFormat swapchainImageFormat;
 	VkExtent2D swapchainExtent;
 	std::vector<VkImageView> swapchainImageViews;
-	std::vector<VkFramebuffer> swapchainFramebuffers;
 };
 
 struct vulkan_init_parameters {
