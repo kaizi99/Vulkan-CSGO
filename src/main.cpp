@@ -85,6 +85,8 @@ int main() {
 		renderer_end_frame(renderer);
 	}
 
+	vkQueueWaitIdle(renderer->init_objects.graphicsQueue);
+	imguivk_deinit(renderer, &imgui);
 	deinit_renderer(renderer);
 	deinit_vulkan(&objects);
 	glfwDestroyWindow(window);

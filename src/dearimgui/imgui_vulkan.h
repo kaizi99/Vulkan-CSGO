@@ -22,3 +22,5 @@ bool imguivk_init(vulkan_renderer* renderer, imguivk* imgui, GLFWwindow* window)
 
 void imguivk_beginFrame(vulkan_renderer* renderer, imguivk* imgui);
 void imguivk_endFrame(vulkan_renderer* renderer, imguivk* imgui);
+
+void imguivk_deinit(vulkan_renderer* renderer, imguivk* imgui);

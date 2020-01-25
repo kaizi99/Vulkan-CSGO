@@ -355,12 +355,12 @@ bool imguivk_init(vulkan_renderer* renderer, imguivk* imgui, GLFWwindow* window)
     colorBlending.pAttachments = &colorBlendAttachment;
 
     VkDynamicState dynamicStates[] = {
-        //VK_DYNAMIC_STATE_SCISSOR
+        VK_DYNAMIC_STATE_SCISSOR
     };
 
     VkPipelineDynamicStateCreateInfo dynamicState = {};
     dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamicState.dynamicStateCount = 0;
+    dynamicState.dynamicStateCount = 1;
     dynamicState.pDynamicStates = dynamicStates;
 
     VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
@@ -417,6 +417,9 @@ bool imguivk_init(vulkan_renderer* renderer, imguivk* imgui, GLFWwindow* window)
     if (vkCreateGraphicsPipelines(renderer->init_objects.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &imgui->pipeline) != VK_SUCCESS) {
         throw std::runtime_error("failed to create framebuffer!");
     }
+
+    vkDestroyShaderModule(renderer->init_objects.device, vertShaderStageInfo.module, nullptr);
+    vkDestroyShaderModule(renderer->init_objects.device, fragShaderStageInfo.module, nullptr);
 
     VkDescriptorPoolSize poolSize = {};
     poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -525,12 +528,6 @@ void imguivk_beginFrame(vulkan_renderer* renderer, imguivk* imgui) {
     imgui->oldDeviceMemory.clear();
 
     ImGui::NewFrame();
-
-    ImGui::Begin("Test");
-    ImGui::Text((std::string("x: ") + std::to_string(mouse_x)).c_str());
-    ImGui::Text((std::string("y: ") + std::to_string(mouse_y)).c_str());
-    ImGui::End();
-    //std::cout << "x: " << mouse_x << ", y: " << mouse_y << std::endl;
 }
 
 void imguivk_endFrame(vulkan_renderer* renderer, imguivk* imgui) {
@@ -604,4 +601,23 @@ void imguivk_endFrame(vulkan_renderer* renderer, imguivk* imgui) {
         imgui->oldDeviceMemory.push_back(vertexBufferMemory);
         imgui->oldDeviceMemory.push_back(indexBufferMemory);
     }
+}
+
+void imguivk_deinit(vulkan_renderer* renderer, imguivk* imgui) {
+    for (const auto& buffer : imgui->oldBuffers) {
+        vkDestroyBuffer(renderer->init_objects.device, buffer, nullptr);
+    }
+
+    for (const auto& memory : imgui->oldDeviceMemory) {
+        vkFreeMemory(renderer->init_objects.device, memory, nullptr);
+    }
+
+    vkDestroyPipeline(renderer->init_objects.device, imgui->pipeline, nullptr);
+    vkDestroyPipelineLayout(renderer->init_objects.device, imgui->pipelineLayout, nullptr);
+    vkDestroyDescriptorPool(renderer->init_objects.device, imgui->descriptorPool, nullptr);
+    vkDestroyDescriptorSetLayout(renderer->init_objects.device, imgui->descriptorSetLayout, nullptr);
+    vkDestroySampler(renderer->init_objects.device, imgui->sampler, nullptr);
+    vkDestroyImageView(renderer->init_objects.device, imgui->imageView, nullptr);
+    vkFreeMemory(renderer->init_objects.device, imgui->textureImageMemory, nullptr);
+    vkDestroyImage(renderer->init_objects.device, imgui->textureImage, nullptr);
 }
