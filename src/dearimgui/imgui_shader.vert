@@ -4,6 +4,11 @@ layout(location = 0) in vec2 pos;
 layout(location = 1) in vec2 uv;
 layout(location = 2) in uint color;
 
+layout(push_constant) uniform PushConsantBlock {
+    vec2 scale;
+    vec2 translate;
+} PushConstant;
+
 layout(location = 0) out struct {
     vec4 Color;
     vec2 Uv;
@@ -14,5 +19,5 @@ void main() {
     Out.Color = colorVec.wzyx / vec4(255);
 
     Out.Uv = uv;
-    gl_Position = vec4(pos.x / 800, pos.y / 600, 0, 1);
+    gl_Position = vec4(pos * PushConstant.scale + PushConstant.translate, 0, 1);
 }

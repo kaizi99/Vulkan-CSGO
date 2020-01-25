@@ -18,8 +18,8 @@ int main() {
 
     vulkan_init_parameters init_params = {};
 
-	init_params.width = 800;
-	init_params.height = 600;
+	init_params.width = 1280;
+	init_params.height = 720;
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
@@ -67,7 +67,7 @@ int main() {
 	std::cout << "Vulkan has been initialized" << std::endl;
 
 	imguivk imgui;
-	imguivk_init(renderer, &imgui);
+	imguivk_init(renderer, &imgui, window);
 
 	std::cout << "DearImGui has been intialized" << std::endl;
 

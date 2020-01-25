@@ -15,9 +15,10 @@ struct imguivk {
     VkPipeline pipeline;
     std::vector<VkBuffer> oldBuffers;
     std::vector<VkDeviceMemory> oldDeviceMemory;
+    GLFWwindow* window;
 };
 
-bool imguivk_init(vulkan_renderer* renderer, imguivk* imgui);
+bool imguivk_init(vulkan_renderer* renderer, imguivk* imgui, GLFWwindow* window);
 
 void imguivk_beginFrame(vulkan_renderer* renderer, imguivk* imgui);
 void imguivk_endFrame(vulkan_renderer* renderer, imguivk* imgui);

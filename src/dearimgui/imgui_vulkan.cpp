@@ -1,9 +1,140 @@
 #include "imgui_vulkan.h"
 #include "../vulkan/vulkan_utils.h"
+#include <string>
+#include <iostream>
 
-bool imguivk_init(vulkan_renderer* renderer, imguivk* imgui) {
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/matrix.hpp>
+#include <glm/gtx/transform.hpp>
+
+struct pushconstant_block {
+    glm::vec2 scale;
+    glm::vec2 translate;
+};
+
+static bool g_MouseJustPressed[5] = { false, false, false, false, false };
+static GLFWcursor* g_MouseCursors[ImGuiMouseCursor_COUNT] = {};
+
+// Chain GLFW callbacks: our callbacks will call the user's previously installed callbacks, if any.
+static GLFWmousebuttonfun   g_PrevUserCallbackMousebutton = NULL;
+static GLFWscrollfun        g_PrevUserCallbackScroll = NULL;
+static GLFWkeyfun           g_PrevUserCallbackKey = NULL;
+static GLFWcharfun          g_PrevUserCallbackChar = NULL;
+static double               g_Time = 0.0;
+
+static const char* ImGui_ImplGlfw_GetClipboardText(void* user_data)
+{
+    return glfwGetClipboardString((GLFWwindow*)user_data);
+}
+
+static void ImGui_ImplGlfw_SetClipboardText(void* user_data, const char* text)
+{
+    glfwSetClipboardString((GLFWwindow*)user_data, text);
+}
+
+void ImGui_ImplGlfw_ScrollCallback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    io.MouseWheelH += (float)xoffset;
+    io.MouseWheel += (float)yoffset;
+}
+
+void ImGui_ImplGlfw_KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    if (action == GLFW_PRESS)
+        io.KeysDown[key] = true;
+    if (action == GLFW_RELEASE)
+        io.KeysDown[key] = false;
+
+    // Modifiers are not reliable across systems
+    io.KeyCtrl = io.KeysDown[GLFW_KEY_LEFT_CONTROL] || io.KeysDown[GLFW_KEY_RIGHT_CONTROL];
+    io.KeyShift = io.KeysDown[GLFW_KEY_LEFT_SHIFT] || io.KeysDown[GLFW_KEY_RIGHT_SHIFT];
+    io.KeyAlt = io.KeysDown[GLFW_KEY_LEFT_ALT] || io.KeysDown[GLFW_KEY_RIGHT_ALT];
+#ifdef _WIN32
+    io.KeySuper = false;
+#else
+    io.KeySuper = io.KeysDown[GLFW_KEY_LEFT_SUPER] || io.KeysDown[GLFW_KEY_RIGHT_SUPER];
+#endif
+}
+
+void ImGui_ImplGlfw_MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+{
+    if (g_PrevUserCallbackMousebutton != NULL)
+        g_PrevUserCallbackMousebutton(window, button, action, mods);
+
+    if (action == GLFW_PRESS && button >= 0 && button < IM_ARRAYSIZE(g_MouseJustPressed))
+        g_MouseJustPressed[button] = true;
+}
+
+void ImGui_ImplGlfw_CharCallback(GLFWwindow* window, unsigned int c)
+{
+    if (g_PrevUserCallbackChar != NULL)
+        g_PrevUserCallbackChar(window, c);
+
+    ImGuiIO& io = ImGui::GetIO();
+    io.AddInputCharacter(c);
+}
+
+bool imguivk_init(vulkan_renderer* renderer, imguivk* imgui, GLFWwindow* window) {
+    imgui->window = window;
+
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
+
+    io.KeyMap[ImGuiKey_Tab] = GLFW_KEY_TAB;
+    io.KeyMap[ImGuiKey_LeftArrow] = GLFW_KEY_LEFT;
+    io.KeyMap[ImGuiKey_RightArrow] = GLFW_KEY_RIGHT;
+    io.KeyMap[ImGuiKey_UpArrow] = GLFW_KEY_UP;
+    io.KeyMap[ImGuiKey_DownArrow] = GLFW_KEY_DOWN;
+    io.KeyMap[ImGuiKey_PageUp] = GLFW_KEY_PAGE_UP;
+    io.KeyMap[ImGuiKey_PageDown] = GLFW_KEY_PAGE_DOWN;
+    io.KeyMap[ImGuiKey_Home] = GLFW_KEY_HOME;
+    io.KeyMap[ImGuiKey_End] = GLFW_KEY_END;
+    io.KeyMap[ImGuiKey_Insert] = GLFW_KEY_INSERT;
+    io.KeyMap[ImGuiKey_Delete] = GLFW_KEY_DELETE;
+    io.KeyMap[ImGuiKey_Backspace] = GLFW_KEY_BACKSPACE;
+    io.KeyMap[ImGuiKey_Space] = GLFW_KEY_SPACE;
+    io.KeyMap[ImGuiKey_Enter] = GLFW_KEY_ENTER;
+    io.KeyMap[ImGuiKey_Escape] = GLFW_KEY_ESCAPE;
+    io.KeyMap[ImGuiKey_KeyPadEnter] = GLFW_KEY_KP_ENTER;
+    io.KeyMap[ImGuiKey_A] = GLFW_KEY_A;
+    io.KeyMap[ImGuiKey_C] = GLFW_KEY_C;
+    io.KeyMap[ImGuiKey_V] = GLFW_KEY_V;
+    io.KeyMap[ImGuiKey_X] = GLFW_KEY_X;
+    io.KeyMap[ImGuiKey_Y] = GLFW_KEY_Y;
+    io.KeyMap[ImGuiKey_Z] = GLFW_KEY_Z;
+
+    // Create mouse cursors
+    // (By design, on X11 cursors are user configurable and some cursors may be missing. When a cursor doesn't exist,
+    // GLFW will emit an error which will often be printed by the app, so we temporarily disable error reporting.
+    // Missing cursors will return NULL and our _UpdateMouseCursor() function will use the Arrow cursor instead.)
+    GLFWerrorfun prev_error_callback = glfwSetErrorCallback(NULL);
+    g_MouseCursors[ImGuiMouseCursor_Arrow] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
+    g_MouseCursors[ImGuiMouseCursor_TextInput] = glfwCreateStandardCursor(GLFW_IBEAM_CURSOR);
+    g_MouseCursors[ImGuiMouseCursor_ResizeNS] = glfwCreateStandardCursor(GLFW_VRESIZE_CURSOR);
+    g_MouseCursors[ImGuiMouseCursor_ResizeEW] = glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR);
+    g_MouseCursors[ImGuiMouseCursor_Hand] = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
+#if GLFW_HAS_NEW_CURSORS
+    g_MouseCursors[ImGuiMouseCursor_ResizeAll] = glfwCreateStandardCursor(GLFW_RESIZE_ALL_CURSOR);
+    g_MouseCursors[ImGuiMouseCursor_ResizeNESW] = glfwCreateStandardCursor(GLFW_RESIZE_NESW_CURSOR);
+    g_MouseCursors[ImGuiMouseCursor_ResizeNWSE] = glfwCreateStandardCursor(GLFW_RESIZE_NWSE_CURSOR);
+    g_MouseCursors[ImGuiMouseCursor_NotAllowed] = glfwCreateStandardCursor(GLFW_NOT_ALLOWED_CURSOR);
+#else
+    g_MouseCursors[ImGuiMouseCursor_ResizeAll] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
+    g_MouseCursors[ImGuiMouseCursor_ResizeNESW] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
+    g_MouseCursors[ImGuiMouseCursor_ResizeNWSE] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
+#endif
+
+    g_PrevUserCallbackMousebutton = NULL;
+    g_PrevUserCallbackScroll = NULL;
+    g_PrevUserCallbackKey = NULL;
+    g_PrevUserCallbackChar = NULL;
+
+    g_PrevUserCallbackMousebutton = glfwSetMouseButtonCallback(window, ImGui_ImplGlfw_MouseButtonCallback);
+    g_PrevUserCallbackScroll = glfwSetScrollCallback(window, ImGui_ImplGlfw_ScrollCallback);
+    g_PrevUserCallbackKey = glfwSetKeyCallback(window, ImGui_ImplGlfw_KeyCallback);
+    g_PrevUserCallbackChar = glfwSetCharCallback(window, ImGui_ImplGlfw_CharCallback);
 
     unsigned char* pixels;
     int width, height;
@@ -249,12 +380,17 @@ bool imguivk_init(vulkan_renderer* renderer, imguivk* imgui) {
         return false;
     }
 
+    VkPushConstantRange pushConstantRange = {};
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(pushconstant_block);
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
     pipelineLayoutInfo.pSetLayouts = &imgui->descriptorSetLayout;
-    pipelineLayoutInfo.pushConstantRangeCount = 0;
-    pipelineLayoutInfo.pPushConstantRanges = nullptr;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
     if (vkCreatePipelineLayout(renderer->init_objects.device, &pipelineLayoutInfo, nullptr, &imgui->pipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create pipeline layout!");
@@ -327,8 +463,55 @@ void imguivk_beginFrame(vulkan_renderer* renderer, imguivk* imgui) {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
 
-    io.DisplaySize.x = 800;
-    io.DisplaySize.y = 600;
+    int w, h;
+    int display_w, display_h;
+    glfwGetWindowSize(imgui->window, &w, &h);
+    glfwGetFramebufferSize(imgui->window, &display_w, &display_h);
+    io.DisplaySize = ImVec2((float)w, (float)h);
+    if (w > 0 && h > 0)
+        io.DisplayFramebufferScale = ImVec2((float)display_w / w, (float)display_h / h);
+
+    double current_time = glfwGetTime();
+    io.DeltaTime = g_Time > 0.0 ? (float)(current_time - g_Time) : (float)(1.0f/60.0f);
+    g_Time = current_time;
+
+    for (int i = 0; i < IM_ARRAYSIZE(io.MouseDown); i++)
+    {
+        // If a mouse press event came, always pass it as "mouse held this frame", so we don't miss click-release events that are shorter than 1 frame.
+        io.MouseDown[i] = g_MouseJustPressed[i] || glfwGetMouseButton(imgui->window, i) != 0;
+        g_MouseJustPressed[i] = false;
+    }
+
+    const ImVec2 mouse_pos_backup = io.MousePos;
+    io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
+    const bool focused = glfwGetWindowAttrib(imgui->window, GLFW_FOCUSED) != 0;
+    double mouse_x, mouse_y;
+    if (focused)
+    {
+        if (io.WantSetMousePos)
+        {
+            glfwSetCursorPos(imgui->window, (double)mouse_pos_backup.x, (double)mouse_pos_backup.y);
+        }
+        else
+        {
+            glfwGetCursorPos(imgui->window, &mouse_x, &mouse_y);
+            io.MousePos = ImVec2((float)mouse_x, (float)mouse_y);
+        }
+    }
+
+    ImGuiMouseCursor imgui_cursor = ImGui::GetMouseCursor();
+    if (imgui_cursor == ImGuiMouseCursor_None || io.MouseDrawCursor)
+    {
+        // Hide OS mouse cursor if imgui is drawing it or if it wants no cursor
+        glfwSetInputMode(imgui->window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+    }
+    else
+    {
+        // Show OS mouse cursor
+        // FIXME-PLATFORM: Unfocused windows seems to fail changing the mouse cursor with GLFW 3.2, but 3.3 works here.
+        glfwSetCursor(imgui->window, g_MouseCursors[imgui_cursor] ? g_MouseCursors[imgui_cursor] : g_MouseCursors[ImGuiMouseCursor_Arrow]);
+        glfwSetInputMode(imgui->window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
 
     for (const auto& buffer : imgui->oldBuffers) {
         vkDestroyBuffer(renderer->init_objects.device, buffer, nullptr);
@@ -342,11 +525,24 @@ void imguivk_beginFrame(vulkan_renderer* renderer, imguivk* imgui) {
     imgui->oldDeviceMemory.clear();
 
     ImGui::NewFrame();
+
+    ImGui::Begin("Test");
+    ImGui::Text((std::string("x: ") + std::to_string(mouse_x)).c_str());
+    ImGui::Text((std::string("y: ") + std::to_string(mouse_y)).c_str());
+    ImGui::End();
+    //std::cout << "x: " << mouse_x << ", y: " << mouse_y << std::endl;
 }
 
 void imguivk_endFrame(vulkan_renderer* renderer, imguivk* imgui) {
     ImGui::EndFrame();
     ImGui::Render();
+
+    int w, h;
+    glfwGetWindowSize(imgui->window, &w, &h);
+
+    pushconstant_block pushconstant = {};
+    pushconstant.scale = glm::vec2(2.0f / w, 2.0f / h);
+    pushconstant.translate = glm::vec2(-1.0f);
 
     ImDrawData* drawData = ImGui::GetDrawData();
 
@@ -377,6 +573,7 @@ void imguivk_endFrame(vulkan_renderer* renderer, imguivk* imgui) {
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(renderer->command_buffer, 0, 1, vertexBuffers, offsets);
         vkCmdBindIndexBuffer(renderer->command_buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+        vkCmdPushConstants(renderer->command_buffer, imgui->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushconstant_block), &pushconstant);
 
         VkDeviceSize indexBufferOffset = 0;
 
@@ -389,16 +586,12 @@ void imguivk_endFrame(vulkan_renderer* renderer, imguivk* imgui) {
             }
             else
             {
-                // We are using scissoring to clip some objects. All low-level graphics API should supports it.
-                // - If your engine doesn't support scissoring yet, you may ignore this at first. You will get some small glitches
-                //   (some elements visible outside their bounds) but you can fix that once everything else works!
-                // - Clipping coordinates are provided in imgui coordinates space (from draw_data->DisplayPos to draw_data->DisplayPos + draw_data->DisplaySize)
-                //   In a single viewport application, draw_data->DisplayPos will always be (0,0) and draw_data->DisplaySize will always be == io.DisplaySize.
-                //   However, in the interest of supporting multi-viewport applications in the future (see 'viewport' branch on github),
-                //   always subtract draw_data->DisplayPos from clipping bounds to convert them to your viewport space.
-                // - Note that pcmd->ClipRect contains Min+Max bounds. Some graphics API may use Min+Max, other may use Min+Size (size being Max-Min)
-                //ImVec2 pos = drawData->DisplayPos;
-                //MyEngineScissor((int)(pcmd->ClipRect.x - pos.x), (int)(pcmd->ClipRect.y - pos.y), (int)(pcmd->ClipRect.z - pos.x), (int)(pcmd->ClipRect.w - pos.y));
+                VkRect2D scissorRect;
+				scissorRect.offset.x = std::max((int32_t)(pcmd->ClipRect.x), 0);
+				scissorRect.offset.y = std::max((int32_t)(pcmd->ClipRect.y), 0);
+				scissorRect.extent.width = (uint32_t)(pcmd->ClipRect.z - pcmd->ClipRect.x);
+				scissorRect.extent.height = (uint32_t)(pcmd->ClipRect.w - pcmd->ClipRect.y);
+				vkCmdSetScissor(renderer->command_buffer, 0, 1, &scissorRect);
 
                 vkCmdBindDescriptorSets(renderer->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imgui->pipelineLayout, 0, 1, &imgui->descriptorSet, 0, nullptr);
                 vkCmdDrawIndexed(renderer->command_buffer, pcmd->ElemCount, 1, indexBufferOffset, 0, 0);
