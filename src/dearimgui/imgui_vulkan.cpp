@@ -463,7 +463,6 @@ bool imguivk_init(vulkan_renderer* renderer, imguivk* imgui, GLFWwindow* window)
 }
 
 void imguivk_beginFrame(vulkan_renderer* renderer, imguivk* imgui) {
-    ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
 
     int w, h;
@@ -516,11 +515,11 @@ void imguivk_beginFrame(vulkan_renderer* renderer, imguivk* imgui) {
         glfwSetInputMode(imgui->window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     }
 
-    for (const auto& buffer : imgui->oldBuffers) {
+    for (VkBuffer buffer : imgui->oldBuffers) {
         vkDestroyBuffer(renderer->init_objects.device, buffer, nullptr);
     }
 
-    for (const auto& memory : imgui->oldDeviceMemory) {
+    for (VkDeviceMemory memory : imgui->oldDeviceMemory) {
         vkFreeMemory(renderer->init_objects.device, memory, nullptr);
     }
 
@@ -571,6 +570,7 @@ void imguivk_endFrame(vulkan_renderer* renderer, imguivk* imgui) {
         vkCmdBindVertexBuffers(renderer->command_buffer, 0, 1, vertexBuffers, offsets);
         vkCmdBindIndexBuffer(renderer->command_buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
         vkCmdPushConstants(renderer->command_buffer, imgui->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushconstant_block), &pushconstant);
+        vkCmdBindDescriptorSets(renderer->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imgui->pipelineLayout, 0, 1, &imgui->descriptorSet, 0, nullptr);
 
         VkDeviceSize indexBufferOffset = 0;
 
@@ -589,8 +589,6 @@ void imguivk_endFrame(vulkan_renderer* renderer, imguivk* imgui) {
 				scissorRect.extent.width = (uint32_t)(pcmd->ClipRect.z - pcmd->ClipRect.x);
 				scissorRect.extent.height = (uint32_t)(pcmd->ClipRect.w - pcmd->ClipRect.y);
 				vkCmdSetScissor(renderer->command_buffer, 0, 1, &scissorRect);
-
-                vkCmdBindDescriptorSets(renderer->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imgui->pipelineLayout, 0, 1, &imgui->descriptorSet, 0, nullptr);
                 vkCmdDrawIndexed(renderer->command_buffer, pcmd->ElemCount, 1, indexBufferOffset, 0, 0);
             }
             indexBufferOffset += pcmd->ElemCount;
