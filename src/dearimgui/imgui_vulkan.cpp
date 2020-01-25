@@ -192,7 +192,7 @@ bool imguivk_init(vulkan_renderer* renderer, imguivk* imgui, GLFWwindow* window)
     region.imageSubresource.baseArrayLayer = 0;
     region.imageSubresource.layerCount = 1;
     region.imageOffset = {0, 0, 0};
-    region.imageExtent = {width, height, 1};
+    region.imageExtent = {(uint32_t)width, (uint32_t)height, 1};
 
     vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
@@ -460,6 +460,8 @@ bool imguivk_init(vulkan_renderer* renderer, imguivk* imgui, GLFWwindow* window)
     descriptorWrite.pImageInfo = &imageInfo;
 
     vkUpdateDescriptorSets(renderer->init_objects.device, 1, &descriptorWrite, 0, nullptr);
+
+    return true;
 }
 
 void imguivk_beginFrame(vulkan_renderer* renderer, imguivk* imgui) {

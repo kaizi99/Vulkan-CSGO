@@ -78,7 +78,8 @@ int main() {
 
 		imguivk_beginFrame(renderer, &imgui);
 
-		ImGui::ShowDemoWindow();
+		bool metrics = true;
+		ImGui::ShowMetricsWindow(&metrics);
 
 		imguivk_endFrame(renderer, &imgui);
 
