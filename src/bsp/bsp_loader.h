@@ -39,13 +39,16 @@ struct bsp_parsed {
 bsp_parsed* load_bsp(const std::string& file);
 
 struct bsp_geometry_vulkan {
+    VkBuffer vertexBuffer;
+    VkDeviceMemory vertexBufferMemory;
+    VkBuffer indexBuffer;
+    VkDeviceMemory indexBufferMemory;
+    int indicesCount;
     VkDescriptorSetLayout descriptorSetLayout;
     VkDescriptorPool descriptorPool;
     VkDescriptorSet descriptorSet;
     VkPipelineLayout pipelineLayout;
     VkPipeline pipeline;
-    VkBuffer vertexBuffer;
-    VkDeviceMemory vertexBufferMemory;
 };
 
 bsp_geometry_vulkan create_geometry_from_bsp(vulkan_renderer* renderer, bsp_parsed* bsp);
