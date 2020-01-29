@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vulkan_renderer.h"
+#include <string>
 
 bool vulkan_createBuffer(vulkan_renderer* renderer, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 bool vulkan_createImage(vulkan_renderer* renderer, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& memory);

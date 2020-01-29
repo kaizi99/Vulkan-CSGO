@@ -6,6 +6,7 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/matrix.hpp>
 #include <glm/gtx/transform.hpp>
+#include <algorithm>
 
 struct pushconstant_block {
     glm::vec2 scale;

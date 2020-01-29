@@ -6,8 +6,11 @@
 #include "vulkan/vulkan_init.h"
 #include "vulkan/vulkan_renderer.h"
 #include "dearimgui/imgui_vulkan.h"
+#include "bsp/bsp_loader.h"
 
 int main() {
+    
+
 	if (glfwInit() != GLFW_TRUE) {
 		std::cout << "GLFW cant be initialized" << std::endl;
 	}
@@ -70,6 +73,9 @@ int main() {
 	imguivk_init(renderer, &imgui, window);
 
 	std::cout << "DearImGui has been intialized" << std::endl;
+
+	std::cout << "Loading: de_train.bsp" << std::endl;
+	bsp_parsed* parsed = load_bsp("de_train.bsp");
 
 	while (!glfwWindowShouldClose(window)) {
 	    glfwPollEvents();
