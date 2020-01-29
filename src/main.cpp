@@ -75,10 +75,11 @@ int main() {
 
 	std::cout << "DearImGui has been intialized" << std::endl;
 
-	std::string csgo_folder = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\csgo\\";
+	//std::string csgo_folder = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\csgo\\";
+	std::string csgo_folder = "/Users/kaizi99/Library/Application Support/Steam/steamapps/common/Counter-Strike Global Offensive/csgo/";
 
 	std::cout << "Loading: de_train.bsp" << std::endl;
-	bsp_parsed* parsed = load_bsp(csgo_folder + "maps\\de_train.bsp");
+	bsp_parsed* parsed = load_bsp(csgo_folder + "maps/de_train.bsp");
 	bsp_geometry_vulkan bsp_geometry = create_geometry_from_bsp(renderer, parsed);
 
 	camera c;

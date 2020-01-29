@@ -11,6 +11,4 @@ layout(location=0) in struct {
 
 void main() {
     color = In.Color * texture(Texture, In.Uv.st);
-    //color = In.Color;
-    //color = texture(Texture, In.Uv.st);
 }

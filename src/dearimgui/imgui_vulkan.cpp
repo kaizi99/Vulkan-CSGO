@@ -356,12 +356,13 @@ bool imguivk_init(vulkan_renderer* renderer, imguivk* imgui, GLFWwindow* window)
     colorBlending.pAttachments = &colorBlendAttachment;
 
     VkDynamicState dynamicStates[] = {
-        VK_DYNAMIC_STATE_SCISSOR
+        VK_DYNAMIC_STATE_SCISSOR,
+        VK_DYNAMIC_STATE_VIEWPORT
     };
 
     VkPipelineDynamicStateCreateInfo dynamicState = {};
     dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamicState.dynamicStateCount = 1;
+    dynamicState.dynamicStateCount = 2;
     dynamicState.pDynamicStates = dynamicStates;
 
     VkDescriptorSetLayoutBinding samplerLayoutBinding = {};
@@ -530,18 +531,33 @@ void imguivk_beginFrame(vulkan_renderer* renderer, imguivk* imgui) {
     imgui->oldDeviceMemory.clear();
 
     ImGui::NewFrame();
+
+    ImGui::Begin("Mouse");
+    ImGui::Text("x: %f", io.MousePos.x);
+    ImGui::Text("y: %f", io.MousePos.y);
+    ImGui::End();
 }
 
 void imguivk_endFrame(vulkan_renderer* renderer, imguivk* imgui) {
     ImGui::EndFrame();
     ImGui::Render();
 
-    int w, h;
-    glfwGetWindowSize(imgui->window, &w, &h);
+    ImGuiIO& io = ImGui::GetIO();
 
     pushconstant_block pushconstant = {};
-    pushconstant.scale = glm::vec2(2.0f / w, 2.0f / h);
+    pushconstant.scale = glm::vec2(2.0f / io.DisplaySize.x, 2.0f / io.DisplaySize.y);
     pushconstant.translate = glm::vec2(-1.0f);
+
+    VkViewport viewport = {};
+    viewport.width = io.DisplayFramebufferScale.x * io.DisplaySize.x;
+    viewport.height = io.DisplayFramebufferScale.y * io.DisplaySize.y;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+
+    vkCmdBindPipeline(renderer->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imgui->pipeline);
+
+    vkCmdPushConstants(renderer->command_buffer, imgui->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushconstant_block), &pushconstant);
+    vkCmdSetViewport(renderer->command_buffer, 0, 1, &viewport);
 
     ImDrawData* drawData = ImGui::GetDrawData();
 
@@ -566,13 +582,10 @@ void imguivk_endFrame(vulkan_renderer* renderer, imguivk* imgui) {
         memcpy(buffer, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.size_in_bytes());
         vkUnmapMemory(renderer->init_objects.device, indexBufferMemory);
 
-        vkCmdBindPipeline(renderer->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imgui->pipeline);
-
         VkBuffer vertexBuffers[] = {vertexBuffer};
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(renderer->command_buffer, 0, 1, vertexBuffers, offsets);
         vkCmdBindIndexBuffer(renderer->command_buffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
-        vkCmdPushConstants(renderer->command_buffer, imgui->pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushconstant_block), &pushconstant);
         vkCmdBindDescriptorSets(renderer->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imgui->pipelineLayout, 0, 1, &imgui->descriptorSet, 0, nullptr);
 
         VkDeviceSize indexBufferOffset = 0;
@@ -586,11 +599,14 @@ void imguivk_endFrame(vulkan_renderer* renderer, imguivk* imgui) {
             }
             else
             {
+                // Scissoring is deactivated because it doesnt behave on Retina Screens.
                 VkRect2D scissorRect;
-				scissorRect.offset.x = std::max((int32_t)(pcmd->ClipRect.x), 0);
-				scissorRect.offset.y = std::max((int32_t)(pcmd->ClipRect.y), 0);
-				scissorRect.extent.width = (uint32_t)(pcmd->ClipRect.z - pcmd->ClipRect.x);
-				scissorRect.extent.height = (uint32_t)(pcmd->ClipRect.w - pcmd->ClipRect.y);
+				//scissorRect.offset.x = std::max((int32_t)(pcmd->ClipRect.x), 0);
+				//scissorRect.offset.y = std::max((int32_t)(pcmd->ClipRect.y), 0);
+				//scissorRect.extent.width = (uint32_t)(pcmd->ClipRect.z - pcmd->ClipRect.x);
+				//scissorRect.extent.height = (uint32_t)(pcmd->ClipRect.w - pcmd->ClipRect.y);
+				scissorRect.extent = renderer->init_objects.swapchainExtent;
+				scissorRect.offset = {0, 0};
 				vkCmdSetScissor(renderer->command_buffer, 0, 1, &scissorRect);
                 vkCmdDrawIndexed(renderer->command_buffer, pcmd->ElemCount, 1, indexBufferOffset, 0, 0);
             }
