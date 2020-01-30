@@ -8,6 +8,7 @@
 #include "dearimgui/imgui_vulkan.h"
 #include "bsp/bsp_loader.h"
 #include "camera.h"
+#include "bsp/vpk.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -81,6 +82,8 @@ int main() {
 	std::cout << "Loading: de_train.bsp" << std::endl;
 	bsp_parsed* parsed = load_bsp(csgo_folder + "maps/de_train.bsp");
 	bsp_geometry_vulkan bsp_geometry = create_geometry_from_bsp(renderer, parsed);
+
+    vpk_directory* vpk = load_vpk(csgo_folder, "pak01");
 
 	camera c;
 	c.position = glm::vec3(-1000, -160, 1300);
