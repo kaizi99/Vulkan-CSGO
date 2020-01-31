@@ -6,7 +6,7 @@
 
 #include <fstream>
 #include <iostream>
-#include <glm/mat4x4.hpp>
+#include <glm/glm.hpp>
 #include "../vulkan/vulkan_utils.h"
 
 #define IDBSPHEADER	(('P'<<24)+('S'<<16)+('B'<<8)+'V')
@@ -49,6 +49,17 @@ struct dface_t
     unsigned short	firstPrimID;
     unsigned int	smoothingGroups;	// lightmap smoothing group
 };
+
+//TODO: Unbekannt ob das ein ivec3 oder vec3 ist
+typedef glm::vec3 Vector;
+
+struct dtexdata_t
+{
+    Vector	reflectivity;		// RGB reflectivity
+    int	nameStringTableID;	// index into TexdataStringTable
+    int	width, height;		// source image
+    int	view_width, view_height;
+};
 #pragma pack(pop)
 
 bsp_parsed* load_bsp(const std::string& file) {
@@ -72,8 +83,7 @@ bsp_parsed* load_bsp(const std::string& file) {
 
     vertex* vertices = new vertex[vertexLump.filelength / 12];
 
-    fs.seekg(0, std::ios::beg);
-    fs.seekg(vertexLump.fileoffset);
+    fs.seekg(vertexLump.fileoffset, std::ios::beg);
     fs.read((char*)vertices, vertexLump.filelength);
 
     // Read edges
@@ -108,6 +118,40 @@ bsp_parsed* load_bsp(const std::string& file) {
 
     delete[] lfaces;
 
+    // Read texinfo
+    lump_t texdataLump = bspheader.lumps[2];
+
+    dtexdata_t* dtexdata = new dtexdata_t[texdataLump.filelength / sizeof(dtexdata_t)];
+    textureInfo* texInfo = new textureInfo[texdataLump.filelength / sizeof(dtexdata_t)];
+
+    lump_t texdataStringTableLump = bspheader.lumps[44];
+    lump_t texdataStringDataLump = bspheader.lumps[43];
+
+    int* texdataStringTable = new int[texdataStringTableLump.filelength / sizeof(int)];
+    char* texdataStringData = new char[texdataStringDataLump.filelength / sizeof(char)];
+
+    fs.seekg(texdataLump.fileoffset, std::ios::beg);
+    fs.read((char*)dtexdata, texdataLump.filelength);
+
+    fs.seekg(texdataStringTableLump.fileoffset, std::ios::beg);
+    fs.read((char*)texdataStringTable, texdataStringTableLump.filelength);
+
+    fs.seekg(texdataStringDataLump.fileoffset, std::ios::beg);
+    fs.read(texdataStringData, texdataStringDataLump.filelength);
+
+    for (int i = 0; i < texdataLump.filelength / sizeof(dtexdata_t); i++) {
+        texInfo[i].width = dtexdata[i].width;
+        texInfo[i].height = dtexdata[i].height;
+        texInfo[i].viewWidth = dtexdata[i].view_width;
+        texInfo[i].viewHeight = dtexdata[i].view_height;
+        
+        texInfo[i].textureName = std::string((char*)(texdataStringData + texdataStringTable[dtexdata[i].nameStringTableID]));
+    }
+
+    delete[] dtexdata;
+    delete[] texdataStringTable;
+    delete[] texdataStringData;
+
     bsp_parsed* returnStruct = new bsp_parsed();
     returnStruct->vertices = vertices;
     returnStruct->verticesCount = vertexLump.filelength / sizeof(vertex);
@@ -117,6 +161,8 @@ bsp_parsed* load_bsp(const std::string& file) {
     returnStruct->surfedgeCount = surfedgeLump.filelength / sizeof(int);
     returnStruct->faces = faces;
     returnStruct->faceCount = facesLump.filelength / sizeof(dface_t);
+    returnStruct->textures = texInfo;
+    returnStruct->textureCount = texdataLump.filelength / sizeof(dtexdata_t);
 
     return returnStruct;
 }

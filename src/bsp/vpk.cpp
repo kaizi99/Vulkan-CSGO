@@ -59,30 +59,39 @@ std::string vpkdir_readstring(char* tree, unsigned int* p) {
 vpk_directory* load_vpk(std::string folder, std::string packname) {
     vpk_directory* dir = new vpk_directory();
 
-    std::ifstream fs(folder + packname + "_dir.vpk");
+    std::ifstream fs(folder + packname + "_dir.vpk", std::ios::binary);
 
     if (!fs.is_open()) {
         throw std::runtime_error("cannot read vpk file " + folder + packname + "_dir.vpk");
     }
 
     VPKHeader_v2 header;
-    fs.read((char*)&header, sizeof(header));
+    fs.read((char*)&header, sizeof(VPKHeader_v2));
 
     if (header.Signature != 0x55aa1234 || header.Version != 2) {
         throw std::runtime_error(folder + packname + "_dir.vpk" + " is not a valid vpk v2 directory!");
     }
 
     char* tree = new char[header.TreeSize];
+    unsigned int read = 0;
+
+    fs.seekg(0, std::ios::end);
+    int size = fs.tellg();
+    int headersize = sizeof(header);
+    fs.seekg(sizeof(header), std::ios::beg);
 
     fs.read(tree, header.TreeSize);
+    
     unsigned int p = 0;
 
     while (true) {
         std::string extension = vpkdir_readstring(tree, &p);
-
+        
         if (extension.empty()) {
             break;
         }
+
+        std::unordered_map<std::string, vpk_directory_entry>& entries = dir->entries[extension];
 
         while (true) {
             std::string path = vpkdir_readstring(tree, &p);
@@ -103,17 +112,21 @@ vpk_directory* load_vpk(std::string folder, std::string packname) {
                 p += sizeof(entry);
 
                 vpk_directory_entry centry = {};
-                centry.filename = path + "/" + filename + "." + extension;
+                centry.filename = filename;
+                centry.path = path;
+                centry.extension = extension;
 
-                centry.preload.reserve(entry.PreloadBytes);
-                memcpy(centry.preload.data(), tree + p, entry.PreloadBytes);
-                p += entry.PreloadBytes;
-
+                if (entry.PreloadBytes != 0) {
+                    centry.preload.reserve(entry.PreloadBytes);
+                    memcpy(centry.preload.data(), tree + p, entry.PreloadBytes);
+                    p += entry.PreloadBytes;
+                }
+                
                 centry.archiveIndex = entry.ArchiveIndex;
                 centry.archiveLength = entry.EntryLength;
                 centry.archiveOffset = entry.EntryOffset;
 
-                dir->entries[centry.filename] = centry;
+                entries[path + "/" + filename] = centry;
             }
         }
     }

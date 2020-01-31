@@ -76,14 +76,30 @@ int main() {
 
 	std::cout << "DearImGui has been intialized" << std::endl;
 
-	//std::string csgo_folder = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\csgo\\";
-	std::string csgo_folder = "/Users/kaizi99/Library/Application Support/Steam/steamapps/common/Counter-Strike Global Offensive/csgo/";
+	std::string csgo_folder = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\csgo\\";
+	//std::string csgo_folder = "/Users/kaizi99/Library/Application Support/Steam/steamapps/common/Counter-Strike Global Offensive/csgo/";
 
 	std::cout << "Loading: de_train.bsp" << std::endl;
 	bsp_parsed* parsed = load_bsp(csgo_folder + "maps/de_train.bsp");
 	bsp_geometry_vulkan bsp_geometry = create_geometry_from_bsp(renderer, parsed);
 
     vpk_directory* vpk = load_vpk(csgo_folder, "pak01");
+
+	for (int i = 0; i < parsed->textureCount; i++) {
+		std::string textureName = parsed->textures[i].textureName;
+		std::string toSearch = "materials/" + textureName;
+
+		auto entry = vpk->entries["vtf"].find(toSearch);
+
+		if (entry == vpk->entries["vtf"].end()) {
+			std::cout << "X: ";
+		}
+		else {
+			std::cout << "O: ";
+		}
+
+		std::cout << textureName << std::endl;
+	}
 
 	camera c;
 	c.position = glm::vec3(-1000, -160, 1300);

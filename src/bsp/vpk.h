@@ -10,6 +10,8 @@
 #include <unordered_map>
 
 struct vpk_directory_entry {
+    std::string extension;
+    std::string path;
     std::string filename;
     std::vector<unsigned char> preload;
     short archiveIndex;
@@ -19,7 +21,8 @@ struct vpk_directory_entry {
 
 struct vpk_directory {
     std::string pakname;
-    std::unordered_map<std::string, vpk_directory_entry> entries;
+    //std::unordered_map < std::string, std::unordered_map<std::string, std::unordered_map<std::string, vpk_directory_entry>>> entries;
+    std::unordered_map < std::string, std::unordered_map < std::string, vpk_directory_entry >> entries;
 };
 
 vpk_directory* load_vpk(std::string folder, std::string packname);

@@ -25,6 +25,14 @@ struct face {
     int edgeCount;
 };
 
+struct textureInfo {
+    int width;
+    int height;
+    int viewWidth;
+    int viewHeight;
+    std::string textureName;
+};
+
 struct bsp_parsed {
     vertex* vertices;
     size_t verticesCount;
@@ -34,6 +42,8 @@ struct bsp_parsed {
     size_t surfedgeCount;
     face* faces;
     size_t faceCount;
+    textureInfo* textures;
+    size_t textureCount;
 };
 
 bsp_parsed* load_bsp(const std::string& file);
