@@ -6,7 +6,6 @@
 
 #include <fstream>
 #include <iostream>
-#include <glm/glm.hpp>
 #include "../vulkan/vulkan_utils.h"
 
 #define IDBSPHEADER	(('P'<<24)+('S'<<16)+('B'<<8)+'V')
@@ -32,33 +31,30 @@ struct dheader_t
 struct dface_t
 {
     unsigned short	planenum;		// the plane number
-    unsigned char		side;			// faces opposite to the node's plane direction
-    unsigned char		onNode;			// 1 of on node, 0 if in leaf
-    int		firstedge;		// index into surfedges
-    short		numedges;		// number of surfedges
-    short		texinfo;		// texture info
-    short		dispinfo;		// displacement info
-    short		surfaceFogVolumeID;	// ?
-    unsigned char		styles[4];		// switchable lighting info
-    int		lightofs;		// offset into lightmap lump
-    float		area;			// face area in units^2
-    int		LightmapTextureMinsInLuxels[2];	// texture lighting info
-    int		LightmapTextureSizeInLuxels[2];	// texture lighting info
-    int		origFace;		// original face this was split from
+    unsigned char	side;			// faces opposite to the node's plane direction
+    unsigned char	onNode;			// 1 of on node, 0 if in leaf
+    int		        firstedge;		// index into surfedges
+    short		    numedges;		// number of surfedges
+    short		    texinfo;		// texture info
+    short		    dispinfo;		// displacement info
+    short		    surfaceFogVolumeID;	// ?
+    unsigned char   styles[4];		// switchable lighting info
+    int		        lightofs;		// offset into lightmap lump
+    float		    area;			// face area in units^2
+    int		        LightmapTextureMinsInLuxels[2];	// texture lighting info
+    int		        LightmapTextureSizeInLuxels[2];	// texture lighting info
+    int		        origFace;		// original face this was split from
     unsigned short	numPrims;		// primitives
     unsigned short	firstPrimID;
     unsigned int	smoothingGroups;	// lightmap smoothing group
 };
 
-//TODO: Unbekannt ob das ein ivec3 oder vec3 ist
-typedef glm::vec3 Vector;
-
 struct dtexdata_t
 {
-    Vector	reflectivity;		// RGB reflectivity
-    int	nameStringTableID;	// index into TexdataStringTable
-    int	width, height;		// source image
-    int	view_width, view_height;
+    glm::vec3	reflectivity;		// RGB reflectivity
+    int	        nameStringTableID;	// index into TexdataStringTable
+    int	        width, height;		// source image
+    int	        view_width, view_height;
 };
 #pragma pack(pop)
 
@@ -144,6 +140,7 @@ bsp_parsed* load_bsp(const std::string& file) {
         texInfo[i].height = dtexdata[i].height;
         texInfo[i].viewWidth = dtexdata[i].view_width;
         texInfo[i].viewHeight = dtexdata[i].view_height;
+        texInfo[i].reflectivity = dtexdata[i].reflectivity;
         
         texInfo[i].textureName = std::string((char*)(texdataStringData + texdataStringTable[dtexdata[i].nameStringTableID]));
     }
@@ -347,7 +344,6 @@ bsp_geometry_vulkan create_geometry_from_bsp(vulkan_renderer* renderer, bsp_pars
     pipelineInfo.renderPass = renderer->render_pass;
     pipelineInfo.basePipelineIndex = -1;
 
-    VkPipeline graphicsPipeline;
     if (vkCreateGraphicsPipelines(renderer->init_objects.device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &geometry.pipeline) != VK_SUCCESS) {
         throw std::runtime_error("failed to create bsp pipeline!");
     }

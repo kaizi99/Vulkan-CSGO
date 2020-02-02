@@ -7,6 +7,7 @@
 
 #include <string>
 #include <cstdint>
+#include <glm/glm.hpp>
 #include "../vulkan/vulkan_renderer.h"
 
 struct vertex {
@@ -26,6 +27,7 @@ struct face {
 };
 
 struct textureInfo {
+    glm::ivec3 reflectivity;
     int width;
     int height;
     int viewWidth;
