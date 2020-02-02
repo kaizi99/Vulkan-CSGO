@@ -58,6 +58,20 @@ struct dtexdata_t
 };
 #pragma pack(pop)
 
+void* read_lump(dheader_t* bspHeader, std::ifstream& stream, int lumpNumber, size_t objectSize, size_t* outObjectCount) {
+    lump_t lump = bspHeader->lumps[lumpNumber];
+
+    void* alloc = malloc(lump.filelength);
+
+    stream.seekg(lump.fileoffset, std::ios::beg);
+    stream.read((char*)alloc, lump.filelength);
+
+    if (outObjectCount != nullptr)
+        *outObjectCount = lump.filelength / objectSize;
+
+    return alloc;
+}
+
 bsp_parsed* load_bsp(const std::string& file) {
     std::ifstream fs(file, std::ios::binary);
 
@@ -66,7 +80,7 @@ bsp_parsed* load_bsp(const std::string& file) {
         return nullptr;
     }
 
-    dheader_t bspheader;
+    dheader_t bspheader = {};
     fs.read((char*)&bspheader, sizeof(bspheader));
 
     if (bspheader.ident != IDBSPHEADER) {
@@ -75,91 +89,65 @@ bsp_parsed* load_bsp(const std::string& file) {
     }
 
     // Read vertices
-    lump_t vertexLump = bspheader.lumps[3];
-
-    vertex* vertices = new vertex[vertexLump.filelength / 12];
-
-    fs.seekg(vertexLump.fileoffset, std::ios::beg);
-    fs.read((char*)vertices, vertexLump.filelength);
+    size_t vertexCount;
+    vertex* vertices = (vertex*)read_lump(&bspheader, fs, 3, sizeof(vertex), &vertexCount);
 
     // Read edges
-    lump_t edgesLump = bspheader.lumps[12];
-
-    edge* edges = new edge[edgesLump.filelength / sizeof(edge)];
-
-    fs.seekg(edgesLump.fileoffset, std::ios::beg);
-    fs.read((char*)edges, edgesLump.filelength);
+    size_t edgeCount;
+    edge* edges = (edge*)read_lump(&bspheader, fs, 12, sizeof(edge), &edgeCount);
 
     // Read surfedges
-    lump_t surfedgeLump = bspheader.lumps[13];
-
-    int* surfedges = new int[surfedgeLump.filelength / sizeof(int)];
-
-    fs.seekg(surfedgeLump.fileoffset, std::ios::beg);
-    fs.read((char*)surfedges, surfedgeLump.filelength);
+    size_t surfedgeCount;
+    int* surfedges = (int*)read_lump(&bspheader, fs, 13, sizeof(int), &surfedgeCount);
 
     // Read Faces
-    lump_t facesLump = bspheader.lumps[7];
+    size_t facesCount;
+    dface_t* lfaces = (dface_t*)read_lump(&bspheader, fs, 7, sizeof(dface_t), &facesCount);
 
-    dface_t* lfaces = new dface_t[facesLump.filelength / sizeof(dface_t)];
-    face* faces = new face[facesLump.filelength / sizeof(dface_t)];
+    face* faces = new face[facesCount];
 
-    fs.seekg(facesLump.fileoffset, std::ios::beg);
-    fs.read((char*)lfaces, facesLump.filelength);
-
-    for (int i = 0; i < facesLump.filelength / sizeof(dface_t); i++) {
+    for (int i = 0; i < facesCount; i++) {
         faces[i].edgeCount = lfaces[i].numedges;
         faces[i].firstSurfedgeIndex = lfaces[i].firstedge;
     }
 
-    delete[] lfaces;
+    free(lfaces);
 
     // Read texinfo
     lump_t texdataLump = bspheader.lumps[2];
 
-    dtexdata_t* dtexdata = new dtexdata_t[texdataLump.filelength / sizeof(dtexdata_t)];
-    textureInfo* texInfo = new textureInfo[texdataLump.filelength / sizeof(dtexdata_t)];
+    size_t texdataCount;
+    dtexdata_t* ltexdata = (dtexdata_t*)read_lump(&bspheader, fs, 2, sizeof(dtexdata_t), &texdataCount);
+    int* texdataStringTable = (int*)read_lump(&bspheader, fs, 44, 0, nullptr);
+    char* texdataStringData = (char*)read_lump(&bspheader, fs, 43, 0, nullptr);
 
-    lump_t texdataStringTableLump = bspheader.lumps[44];
-    lump_t texdataStringDataLump = bspheader.lumps[43];
+    textureInfo* texInfo = new textureInfo[texdataCount];
 
-    int* texdataStringTable = new int[texdataStringTableLump.filelength / sizeof(int)];
-    char* texdataStringData = new char[texdataStringDataLump.filelength / sizeof(char)];
-
-    fs.seekg(texdataLump.fileoffset, std::ios::beg);
-    fs.read((char*)dtexdata, texdataLump.filelength);
-
-    fs.seekg(texdataStringTableLump.fileoffset, std::ios::beg);
-    fs.read((char*)texdataStringTable, texdataStringTableLump.filelength);
-
-    fs.seekg(texdataStringDataLump.fileoffset, std::ios::beg);
-    fs.read(texdataStringData, texdataStringDataLump.filelength);
-
-    for (int i = 0; i < texdataLump.filelength / sizeof(dtexdata_t); i++) {
-        texInfo[i].width = dtexdata[i].width;
-        texInfo[i].height = dtexdata[i].height;
-        texInfo[i].viewWidth = dtexdata[i].view_width;
-        texInfo[i].viewHeight = dtexdata[i].view_height;
-        texInfo[i].reflectivity = dtexdata[i].reflectivity;
+    for (int i = 0; i < texdataCount; i++) {
+        texInfo[i].width = ltexdata[i].width;
+        texInfo[i].height = ltexdata[i].height;
+        texInfo[i].viewWidth = ltexdata[i].view_width;
+        texInfo[i].viewHeight = ltexdata[i].view_height;
+        texInfo[i].reflectivity = ltexdata[i].reflectivity;
         
-        texInfo[i].textureName = std::string((char*)(texdataStringData + texdataStringTable[dtexdata[i].nameStringTableID]));
+        texInfo[i].textureName = std::string((char*)(texdataStringData + texdataStringTable[ltexdata[i].nameStringTableID]));
     }
 
-    delete[] dtexdata;
+    delete[] ltexdata;
     delete[] texdataStringTable;
     delete[] texdataStringData;
 
     bsp_parsed* returnStruct = new bsp_parsed();
     returnStruct->vertices = vertices;
-    returnStruct->verticesCount = vertexLump.filelength / sizeof(vertex);
+    returnStruct->verticesCount = vertexCount;
     returnStruct->edges = edges;
-    returnStruct->edgeCount = edgesLump.filelength / sizeof(edge);
+    returnStruct->edgeCount = edgeCount;
     returnStruct->surfedges = surfedges;
-    returnStruct->surfedgeCount = surfedgeLump.filelength / sizeof(int);
+    returnStruct->surfedgeCount = surfedgeCount;
     returnStruct->faces = faces;
-    returnStruct->faceCount = facesLump.filelength / sizeof(dface_t);
+    returnStruct->faceCount = facesCount;
     returnStruct->textures = texInfo;
-    returnStruct->textureCount = texdataLump.filelength / sizeof(dtexdata_t);
+    returnStruct->textureCount = texdataCount;
 
     return returnStruct;
 }
