@@ -35,6 +35,29 @@ struct textureInfo {
     std::string textureName;
 };
 
+struct plane {
+    glm::vec3 normal;
+    float distance;
+    int type;
+};
+
+struct cluster {
+    std::vector<face*> faces;
+};
+
+enum bspNodeType {
+    NODE,
+    LEAF
+};
+
+struct bspTree {
+    bspTree* childs[2];
+    bspNodeType type;
+    plane nSplittingPlane;
+    cluster* lCluster;
+    short lClusterNumber;
+};
+
 struct bsp_parsed {
     vertex* vertices;
     size_t verticesCount;
@@ -46,6 +69,10 @@ struct bsp_parsed {
     size_t faceCount;
     textureInfo* textures;
     size_t textureCount;
+    cluster* clusters;
+    size_t clusterCount;
+    bspTree* bspTrees;
+    size_t bspTreeCount;
 };
 
 bsp_parsed* load_bsp(const std::string& file);

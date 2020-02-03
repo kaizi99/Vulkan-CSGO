@@ -6,6 +6,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <unordered_map>
 #include "../vulkan/vulkan_utils.h"
 
 #define IDBSPHEADER	(('P'<<24)+('S'<<16)+('B'<<8)+'V')
@@ -56,7 +57,80 @@ struct dtexdata_t
     int	        width, height;		// source image
     int	        view_width, view_height;
 };
+
+struct dnode_t
+{
+    int		planenum;	// index into plane array
+    int		children[2];	// negative numbers are -(leafs + 1), not nodes
+    short		mins[3];	// for frustum culling
+    short		maxs[3];
+    unsigned short	firstface;	// index into face array
+    unsigned short	numfaces;	// counting both sides
+    short		area;		// If all leaves below this node are in the same area, then
+    // this is the area index. If not, this is -1.
+    short		paddding;	// pad to 32 bytes length
+};
+
+struct dleaf_t
+{
+    int			contents;		// OR of all brushes (not needed?)
+    short			cluster;		// cluster this leaf is in
+    short			area:9;			// area this leaf is in
+    short			flags:7;		// flags
+    short			mins[3];		// for frustum culling
+    short			maxs[3];
+    unsigned short		firstleafface;		// index into leaffaces
+    unsigned short		numleaffaces;
+    unsigned short		firstleafbrush;		// index into leafbrushes
+    unsigned short		numleafbrushes;
+    short			leafWaterDataID;	// -1 for not in water
+
+    //!!! NOTE: for maps of version 19 or lower uncomment this block
+    /*
+    CompressedLightCube	ambientLighting;	// Precaculated light info for entities.
+    short			padding;		// padding to 4-byte boundary
+    */
+};
+
+struct dmodel_t
+{
+    glm::vec3	mins, maxs;		// bounding box
+    glm::vec3	origin;			// for sounds or lights
+    int	        headnode;		// index into node array
+    int	        firstface, numfaces;	// index into face array
+};
+
 #pragma pack(pop)
+
+void convertTree(bspTree* node, plane* splittingPlanes, dnode_t* nodes, dleaf_t* leafs, int leftChild, int rightChild) {
+    if (leftChild == abs(leftChild)) {
+        // Left child is node
+        node->childs[0] = new bspTree();
+        node->childs[0]->type = NODE;
+        node->childs[0]->nSplittingPlane = splittingPlanes[nodes[leftChild].planenum];
+
+        convertTree(node->childs[0], splittingPlanes, nodes, leafs, nodes[leftChild].children[0], nodes[leftChild].children[1]);
+    } else {
+        // Left child is leaf
+        node->childs[0] = new bspTree();
+        node->childs[0]->type = LEAF;
+        node->childs[0]->lClusterNumber = leafs[abs(leftChild) - 1].cluster;
+    }
+
+    if (rightChild == abs(rightChild)) {
+        // Right child is node
+        node->childs[1] = new bspTree();
+        node->childs[1]->type = NODE;
+        node->childs[1]->nSplittingPlane = splittingPlanes[nodes[rightChild].planenum];
+
+        convertTree(node->childs[1], splittingPlanes, nodes, leafs, nodes[rightChild].children[0], nodes[rightChild].children[1]);
+    } else {
+        // Right child is leaf
+        node->childs[1] = new bspTree();
+        node->childs[1]->type = LEAF;
+        node->childs[1]->lClusterNumber = leafs[abs(rightChild) - 1].cluster;
+    }
+}
 
 void* read_lump(dheader_t* bspHeader, std::ifstream& stream, int lumpNumber, size_t objectSize, size_t* outObjectCount) {
     lump_t lump = bspHeader->lumps[lumpNumber];
@@ -114,8 +188,6 @@ bsp_parsed* load_bsp(const std::string& file) {
     free(lfaces);
 
     // Read texinfo
-    lump_t texdataLump = bspheader.lumps[2];
-
     size_t texdataCount;
     dtexdata_t* ltexdata = (dtexdata_t*)read_lump(&bspheader, fs, 2, sizeof(dtexdata_t), &texdataCount);
     int* texdataStringTable = (int*)read_lump(&bspheader, fs, 44, 0, nullptr);
@@ -137,6 +209,32 @@ bsp_parsed* load_bsp(const std::string& file) {
     delete[] texdataStringTable;
     delete[] texdataStringData;
 
+    // Read BSP Trees
+
+    // Maps cluster number from the leaves into cluster objects
+    // Normally, only one leaf is assigned to one cluster but it seems that with csgo maps, especially with skyboxes,
+    // multiple leafs can be assigned to one cluster (from valve bsp documentation)
+    std::unordered_map<int, cluster> clusterMapping;
+
+    size_t modelCount;
+    dnode_t* nodes = (dnode_t*)read_lump(&bspheader, fs, 5, 0, nullptr);
+    dleaf_t* leafs = (dleaf_t*)read_lump(&bspheader, fs, 10, 0, nullptr);
+    dmodel_t* models = (dmodel_t*)read_lump(&bspheader, fs, 14, sizeof(dmodel_t), &modelCount);
+    plane* splittingPlanes = (plane*)read_lump(&bspheader, fs, 1, 0, nullptr);
+
+    bspTree* trees = new bspTree[modelCount];
+
+    for (int i = 0; i < modelCount; i++) {
+        dnode_t* headNode = nodes + models[i].headnode;
+
+        convertTree(trees + i, splittingPlanes, nodes, leafs, headNode->children[0], headNode->children[1]);
+    }
+
+    free(models);
+    free(leafs);
+    free(nodes);
+    free(splittingPlanes);
+
     bsp_parsed* returnStruct = new bsp_parsed();
     returnStruct->vertices = vertices;
     returnStruct->verticesCount = vertexCount;
@@ -148,6 +246,8 @@ bsp_parsed* load_bsp(const std::string& file) {
     returnStruct->faceCount = facesCount;
     returnStruct->textures = texInfo;
     returnStruct->textureCount = texdataCount;
+    returnStruct->bspTrees = trees;
+    returnStruct->bspTreeCount = modelCount;
 
     return returnStruct;
 }
