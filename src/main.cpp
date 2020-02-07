@@ -1,3 +1,19 @@
+// Copyright (C) 2020 Kai-Uwe Zimdars
+/*
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 #include <iostream>
 
 #define GLFW_INCLUDE_VULKAN
@@ -76,8 +92,8 @@ int main() {
 
 	std::cout << "DearImGui has been intialized" << std::endl;
 
-	//std::string csgo_folder = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\csgo\\";
-	std::string csgo_folder = "/Users/kaizi99/Library/Application Support/Steam/steamapps/common/Counter-Strike Global Offensive/csgo/";
+	std::string csgo_folder = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\csgo\\";
+	//std::string csgo_folder = "/Users/kaizi99/Library/Application Support/Steam/steamapps/common/Counter-Strike Global Offensive/csgo/";
 	std::cout << "Loading: de_train.bsp" << std::endl;
 
 	bsp_parsed* parsed = load_bsp(csgo_folder + "maps/de_train.bsp");
@@ -99,7 +115,7 @@ int main() {
 	}
 
 	camera c;
-	c.position = glm::vec3(-1000, -160, 1300);
+	c.position = glm::vec3(-50, -1300, -20);
 	c.rotation = glm::vec3(0.0f);
 	c.fov = 90;
 	c.aspectRatio = (float)init_params.width / (float)init_params.height;
@@ -126,7 +142,7 @@ int main() {
 		glm::mat4 mvp = calculateViewProjection(c);
 		vkCmdPushConstants(renderer->command_buffer, bsp_geometry.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp), &mvp);
 
-		vkCmdDrawIndexed(renderer->command_buffer, bsp_geometry.indicesCount, 1, 0, 0, 0);
+		vkCmdDrawIndexed(renderer->command_buffer, bsp_geometry.maxIndicesCount, 1, 0, 0, 0);
 
 		imguivk_endFrame(renderer, &imgui);
 

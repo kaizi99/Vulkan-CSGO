@@ -1,6 +1,18 @@
-//
-// Created by kaizi99 on 1/25/20.
-//
+// Copyright (C) 2020 Kai-Uwe Zimdars
+/*
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
 
 #include "bsp_loader.h"
 
@@ -102,33 +114,58 @@ struct dmodel_t
 
 #pragma pack(pop)
 
-void convertTree(bspTree* node, plane* splittingPlanes, dnode_t* nodes, dleaf_t* leafs, int leftChild, int rightChild) {
+void convertTree(bspTree* node, plane* splittingPlanes, dnode_t* nodes, dleaf_t* leafs, std::unordered_map<int, cluster*>& clusterMapping, unsigned short* leaffaces, face* faces, int leftChild, int rightChild) {
     if (leftChild == abs(leftChild)) {
         // Left child is node
         node->childs[0] = new bspTree();
         node->childs[0]->type = NODE;
         node->childs[0]->nSplittingPlane = splittingPlanes[nodes[leftChild].planenum];
 
-        convertTree(node->childs[0], splittingPlanes, nodes, leafs, nodes[leftChild].children[0], nodes[leftChild].children[1]);
+        convertTree(node->childs[0], splittingPlanes, nodes, leafs, clusterMapping, leaffaces, faces, nodes[leftChild].children[0], nodes[leftChild].children[1]);
     } else {
         // Left child is leaf
+        dleaf_t leaf = leafs[abs(leftChild) - 1];
+
         node->childs[0] = new bspTree();
         node->childs[0]->type = LEAF;
-        node->childs[0]->lClusterNumber = leafs[abs(leftChild) - 1].cluster;
+        node->childs[0]->lClusterNumber = leaf.cluster;
+
+        short clusterNumber = leaf.cluster;
+
+        cluster* pCluster = clusterMapping[clusterNumber];
+        if (pCluster == nullptr) {
+            pCluster = new cluster();
+            clusterMapping[clusterNumber] = pCluster;
+        }
+
+        for (int i = 0; i < leaf.numleaffaces; i++) {
+            pCluster->faces.push_back(faces + leaffaces[leaf.firstleafface + i]);
+        }
+
+        node->childs[0]->lCluster = pCluster;
     }
 
     if (rightChild == abs(rightChild)) {
         // Right child is node
-        node->childs[1] = new bspTree();
-        node->childs[1]->type = NODE;
-        node->childs[1]->nSplittingPlane = splittingPlanes[nodes[rightChild].planenum];
+        dleaf_t leaf = leafs[abs(rightChild) - 1];
 
-        convertTree(node->childs[1], splittingPlanes, nodes, leafs, nodes[rightChild].children[0], nodes[rightChild].children[1]);
-    } else {
-        // Right child is leaf
         node->childs[1] = new bspTree();
         node->childs[1]->type = LEAF;
-        node->childs[1]->lClusterNumber = leafs[abs(rightChild) - 1].cluster;
+        node->childs[1]->lClusterNumber = leaf.cluster;
+
+        short clusterNumber = leaf.cluster;
+
+        cluster* pCluster = clusterMapping[clusterNumber];
+        if (pCluster == nullptr) {
+            pCluster = new cluster();
+            clusterMapping[clusterNumber] = pCluster;
+        }
+
+        for (int i = 0; i < leaf.numleaffaces; i++) {
+            pCluster->faces.push_back(faces + leaffaces[leaf.firstleafface + i]);
+        }
+
+        node->childs[1]->lCluster = pCluster;
     }
 }
 
@@ -214,12 +251,13 @@ bsp_parsed* load_bsp(const std::string& file) {
     // Maps cluster number from the leaves into cluster objects
     // Normally, only one leaf is assigned to one cluster but it seems that with csgo maps, especially with skyboxes,
     // multiple leafs can be assigned to one cluster (from valve bsp documentation)
-    std::unordered_map<int, cluster> clusterMapping;
+    std::unordered_map<int, cluster*> clusterMapping;
 
     size_t modelCount;
     dnode_t* nodes = (dnode_t*)read_lump(&bspheader, fs, 5, 0, nullptr);
     dleaf_t* leafs = (dleaf_t*)read_lump(&bspheader, fs, 10, 0, nullptr);
     dmodel_t* models = (dmodel_t*)read_lump(&bspheader, fs, 14, sizeof(dmodel_t), &modelCount);
+    unsigned short* leaffaces = (unsigned short*)read_lump(&bspheader, fs, 16, 0, nullptr);
     plane* splittingPlanes = (plane*)read_lump(&bspheader, fs, 1, 0, nullptr);
 
     bspTree* trees = new bspTree[modelCount];
@@ -227,7 +265,7 @@ bsp_parsed* load_bsp(const std::string& file) {
     for (int i = 0; i < modelCount; i++) {
         dnode_t* headNode = nodes + models[i].headnode;
 
-        convertTree(trees + i, splittingPlanes, nodes, leafs, headNode->children[0], headNode->children[1]);
+        convertTree(trees + i, splittingPlanes, nodes, leafs, clusterMapping, leaffaces, faces, headNode->children[0], headNode->children[1]);
     }
 
     free(models);
@@ -256,7 +294,7 @@ bsp_geometry_vulkan create_geometry_from_bsp(vulkan_renderer* renderer, bsp_pars
     bsp_geometry_vulkan geometry = {};
 
     vulkan_createBuffer(renderer, bsp->verticesCount * sizeof(vertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, geometry.vertexBuffer, geometry.vertexBufferMemory);
-    
+
     void* bufferAddress;
     vkMapMemory(renderer->init_objects.device, geometry.vertexBufferMemory, 0, bsp->verticesCount * sizeof(vertex), 0, &bufferAddress);
     memcpy(bufferAddress, bsp->vertices, bsp->verticesCount * sizeof(vertex));
@@ -283,11 +321,11 @@ bsp_geometry_vulkan create_geometry_from_bsp(vulkan_renderer* renderer, bsp_pars
         }
     }
 
-    geometry.indicesCount = indices.size();
-    vulkan_createBuffer(renderer, geometry.indicesCount * sizeof(short), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, geometry.indexBuffer, geometry.indexBufferMemory);
+    geometry.maxIndicesCount = indices.size();
+    vulkan_createBuffer(renderer, geometry.maxIndicesCount * sizeof(short), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, geometry.indexBuffer, geometry.indexBufferMemory);
 
-    vkMapMemory(renderer->init_objects.device, geometry.indexBufferMemory, 0, geometry.indicesCount * sizeof(short), 0, &bufferAddress);
-    memcpy(bufferAddress, indices.data(), geometry.indicesCount * sizeof(short));
+    vkMapMemory(renderer->init_objects.device, geometry.indexBufferMemory, 0, geometry.maxIndicesCount * sizeof(short), 0, &bufferAddress);
+    memcpy(bufferAddress, indices.data(), geometry.maxIndicesCount * sizeof(short));
     vkUnmapMemory(renderer->init_objects.device, geometry.indexBufferMemory);
 
     // Create Pipeline for Rendering Operations
