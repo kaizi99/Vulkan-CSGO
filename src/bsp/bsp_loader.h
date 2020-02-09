@@ -54,6 +54,7 @@ struct plane {
 };
 
 struct cluster {
+    int clusterID;
     std::vector<face*> faces;
 };
 
@@ -66,7 +67,6 @@ struct bspTree {
     bspTree* childs[2];
     bspNodeType type;
     plane nSplittingPlane;
-    cluster* lCluster;
     short lClusterNumber;
 };
 
@@ -89,6 +89,7 @@ struct bsp_parsed {
 
 bsp_parsed* load_bsp(const std::string& file);
 
+/*
 struct bsp_geometry_vulkan {
     VkBuffer vertexBuffer;
     VkDeviceMemory vertexBufferMemory;
@@ -103,5 +104,6 @@ struct bsp_geometry_vulkan {
 };
 
 bsp_geometry_vulkan create_geometry_from_bsp(vulkan_renderer* renderer, bsp_parsed* bsp);
+*/
 
 #endif //VULKAN_TEST_BSP_LOADER_H

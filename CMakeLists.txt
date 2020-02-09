@@ -13,5 +13,5 @@ include_directories(${Vulkan_INCLUDE_DIR})
 include_directories(deps/glfw/include)
 include_directories(deps/glm)
 
-add_executable(test src/main.cpp src/vulkan/vulkan_init.cpp src/vulkan/vulkan_renderer.cpp src/dearimgui/imgui.cpp src/dearimgui/imgui_widgets.cpp src/dearimgui/imgui_draw.cpp src/dearimgui/imgui_demo.cpp src/dearimgui/imgui_vulkan.cpp src/vulkan/vulkan_utils.cpp src/bsp/bsp_loader.cpp src/camera.cpp src/bsp/vpk.h src/bsp/vpk.cpp)
+add_executable(test src/main.cpp src/vulkan/vulkan_init.cpp src/vulkan/vulkan_renderer.cpp src/dearimgui/imgui.cpp src/dearimgui/imgui_widgets.cpp src/dearimgui/imgui_draw.cpp src/dearimgui/imgui_demo.cpp src/dearimgui/imgui_vulkan.cpp src/vulkan/vulkan_utils.cpp src/bsp/bsp_loader.cpp src/camera.cpp src/bsp/vpk.h src/bsp/vpk.cpp src/bsp/bsp_rendering.cpp)
 target_link_libraries(test ${Vulkan_LIBRARY} glfw ${GLFW_LIBRARIES})

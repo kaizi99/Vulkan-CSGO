@@ -135,14 +135,13 @@ void convertTree(bspTree* node, plane* splittingPlanes, dnode_t* nodes, dleaf_t*
         cluster* pCluster = clusterMapping[clusterNumber];
         if (pCluster == nullptr) {
             pCluster = new cluster();
+            pCluster->clusterID = clusterNumber;
             clusterMapping[clusterNumber] = pCluster;
         }
 
         for (int i = 0; i < leaf.numleaffaces; i++) {
             pCluster->faces.push_back(faces + leaffaces[leaf.firstleafface + i]);
         }
-
-        node->childs[0]->lCluster = pCluster;
     }
 
     if (rightChild == abs(rightChild)) {
@@ -158,14 +157,13 @@ void convertTree(bspTree* node, plane* splittingPlanes, dnode_t* nodes, dleaf_t*
         cluster* pCluster = clusterMapping[clusterNumber];
         if (pCluster == nullptr) {
             pCluster = new cluster();
+            pCluster->clusterID = clusterNumber;
             clusterMapping[clusterNumber] = pCluster;
         }
 
         for (int i = 0; i < leaf.numleaffaces; i++) {
             pCluster->faces.push_back(faces + leaffaces[leaf.firstleafface + i]);
         }
-
-        node->childs[1]->lCluster = pCluster;
     }
 }
 
@@ -268,6 +266,19 @@ bsp_parsed* load_bsp(const std::string& file) {
         convertTree(trees + i, splittingPlanes, nodes, leafs, clusterMapping, leaffaces, faces, headNode->children[0], headNode->children[1]);
     }
 
+    int clusterIDMax = 0;
+    for (const auto& clusterMapEntry : clusterMapping) {
+        if (clusterIDMax < clusterMapEntry.first) {
+            clusterIDMax = clusterMapEntry.first;
+        }
+    }
+
+    cluster* clusters = new cluster[clusterIDMax];
+    for (auto& clusterMapEntry : clusterMapping) {
+        clusters[clusterMapEntry.first] = *clusterMapEntry.second;
+        free(clusterMapEntry.second);
+    }
+
     free(models);
     free(leafs);
     free(nodes);
@@ -286,10 +297,13 @@ bsp_parsed* load_bsp(const std::string& file) {
     returnStruct->textureCount = texdataCount;
     returnStruct->bspTrees = trees;
     returnStruct->bspTreeCount = modelCount;
+    returnStruct->clusters = clusters;
+    returnStruct->clusterCount = clusterIDMax;
 
     return returnStruct;
 }
 
+/*
 bsp_geometry_vulkan create_geometry_from_bsp(vulkan_renderer* renderer, bsp_parsed* bsp) {
     bsp_geometry_vulkan geometry = {};
 
@@ -479,3 +493,4 @@ bsp_geometry_vulkan create_geometry_from_bsp(vulkan_renderer* renderer, bsp_pars
 
     return geometry;
 }
+*/
