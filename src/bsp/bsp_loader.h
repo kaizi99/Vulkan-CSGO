@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <glm/glm.hpp>
 #include "../vulkan/vulkan_renderer.h"
+#include <unordered_map>
 
 struct vertex {
     float x;
@@ -67,7 +68,7 @@ struct bspTree {
     bspTree* childs[2];
     bspNodeType type;
     plane nSplittingPlane;
-    short lClusterNumber;
+    std::vector<face*> faces;
 };
 
 struct bsp_parsed {
@@ -81,8 +82,6 @@ struct bsp_parsed {
     size_t faceCount;
     textureInfo* textures;
     size_t textureCount;
-    cluster* clusters;
-    size_t clusterCount;
     bspTree* bspTrees;
     size_t bspTreeCount;
 };

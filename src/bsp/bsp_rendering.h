@@ -15,6 +15,7 @@
 */
 
 #include "bsp_loader.h"
+#include "../camera.h"
 
 struct bsp_face_rendering_data {
     int indexBufferOffset;
@@ -27,7 +28,7 @@ struct bsp_cluster_rendering_data {
 
 struct bsp_rendering_data {
     std::vector<bspTree> bspTrees;
-    std::vector<bsp_cluster_rendering_data> chunkRenderingData;
+    std::unordered_map<short, bsp_cluster_rendering_data> clusterRenderingData;
 
     VkBuffer vertexBuffer;
     VkDeviceMemory vertexBufferMemory;
@@ -40,4 +41,6 @@ struct bsp_rendering_data {
     VkPipeline pipeline;
 };
 
-bsp_rendering_data bsp_rendering_prepare(bsp_parsed* bsp);
+bsp_rendering_data bsp_rendering_prepare(bsp_parsed* bsp, vulkan_renderer* renderer);
+
+void bsp_render(bsp_rendering_data* renderingData, vulkan_renderer* renderer, camera* c);

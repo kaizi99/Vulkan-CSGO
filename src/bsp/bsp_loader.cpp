@@ -114,55 +114,48 @@ struct dmodel_t
 
 #pragma pack(pop)
 
-void convertTree(bspTree* node, plane* splittingPlanes, dnode_t* nodes, dleaf_t* leafs, std::unordered_map<int, cluster*>& clusterMapping, unsigned short* leaffaces, face* faces, int leftChild, int rightChild) {
-    if (leftChild == abs(leftChild)) {
+void convertTree(bspTree* node, plane* splittingPlanes, dnode_t* nodes, dleaf_t* leafs, unsigned short* leaffaces, face* faces, int numclusters, int leftChild, int rightChild) {
+    if (leftChild >= 0) {
         // Left child is node
         node->childs[0] = new bspTree();
         node->childs[0]->type = NODE;
         node->childs[0]->nSplittingPlane = splittingPlanes[nodes[leftChild].planenum];
 
-        convertTree(node->childs[0], splittingPlanes, nodes, leafs, clusterMapping, leaffaces, faces, nodes[leftChild].children[0], nodes[leftChild].children[1]);
+        convertTree(node->childs[0], splittingPlanes, nodes, leafs, leaffaces, faces, numclusters, nodes[leftChild].children[0], nodes[leftChild].children[1]);
     } else {
         // Left child is leaf
         dleaf_t leaf = leafs[abs(leftChild) - 1];
 
         node->childs[0] = new bspTree();
         node->childs[0]->type = LEAF;
-        node->childs[0]->lClusterNumber = leaf.cluster;
 
-        short clusterNumber = leaf.cluster;
-
-        cluster* pCluster = clusterMapping[clusterNumber];
-        if (pCluster == nullptr) {
-            pCluster = new cluster();
-            pCluster->clusterID = clusterNumber;
-            clusterMapping[clusterNumber] = pCluster;
-        }
-
-        for (int i = 0; i < leaf.numleaffaces; i++) {
-            pCluster->faces.push_back(faces + leaffaces[leaf.firstleafface + i]);
+        if (leaf.cluster < numclusters || leaf.cluster >= 0) {
+            node->childs[0]->faces.resize(leaf.numleaffaces);
+            for (int i = 0; i < leaf.numleaffaces; i++) {
+                node->childs[0]->faces.push_back(faces + leaffaces[leaf.firstleafface + i]);
+            }
         }
     }
 
-    if (rightChild == abs(rightChild)) {
+    if (rightChild >= 0) {
         // Right child is node
+        node->childs[1] = new bspTree();
+        node->childs[1]->type = NODE;
+        node->childs[1]->nSplittingPlane = splittingPlanes[nodes[rightChild].planenum];
+
+        convertTree(node->childs[1], splittingPlanes, nodes, leafs, leaffaces, faces, numclusters, nodes[rightChild].children[0], nodes[rightChild].children[1]);
+    } else {
+        // Right child is leaf
         dleaf_t leaf = leafs[abs(rightChild) - 1];
 
         node->childs[1] = new bspTree();
         node->childs[1]->type = LEAF;
-        node->childs[1]->lClusterNumber = leaf.cluster;
 
-        short clusterNumber = leaf.cluster;
-
-        cluster* pCluster = clusterMapping[clusterNumber];
-        if (pCluster == nullptr) {
-            pCluster = new cluster();
-            pCluster->clusterID = clusterNumber;
-            clusterMapping[clusterNumber] = pCluster;
-        }
-
-        for (int i = 0; i < leaf.numleaffaces; i++) {
-            pCluster->faces.push_back(faces + leaffaces[leaf.firstleafface + i]);
+        if (leaf.cluster < numclusters || leaf.cluster >= 0) {
+            node->childs[0]->faces.resize(leaf.numleaffaces);
+            for (int i = 0; i < leaf.numleaffaces; i++) {
+                node->childs[0]->faces.push_back(faces + leaffaces[leaf.firstleafface + i]);
+            }
         }
     }
 }
@@ -213,6 +206,9 @@ bsp_parsed* load_bsp(const std::string& file) {
     size_t facesCount;
     dface_t* lfaces = (dface_t*)read_lump(&bspheader, fs, 7, sizeof(dface_t), &facesCount);
 
+    // Visibility information
+    int* vis = (int*)read_lump(&bspheader, fs, 4, 0, nullptr);
+
     face* faces = new face[facesCount];
 
     for (int i = 0; i < facesCount; i++) {
@@ -245,38 +241,23 @@ bsp_parsed* load_bsp(const std::string& file) {
     delete[] texdataStringData;
 
     // Read BSP Trees
-
-    // Maps cluster number from the leaves into cluster objects
-    // Normally, only one leaf is assigned to one cluster but it seems that with csgo maps, especially with skyboxes,
-    // multiple leafs can be assigned to one cluster (from valve bsp documentation)
-    std::unordered_map<int, cluster*> clusterMapping;
-
     size_t modelCount;
-    dnode_t* nodes = (dnode_t*)read_lump(&bspheader, fs, 5, 0, nullptr);
-    dleaf_t* leafs = (dleaf_t*)read_lump(&bspheader, fs, 10, 0, nullptr);
+    size_t leaffaceCount;
+    size_t nodeCount;
+    size_t leafCount;
+    size_t planeCount;
+    dnode_t* nodes = (dnode_t*)read_lump(&bspheader, fs, 5, sizeof(dnode_t), &nodeCount);
+    dleaf_t* leafs = (dleaf_t*)read_lump(&bspheader, fs, 10, sizeof(dleaf_t), &leafCount);
     dmodel_t* models = (dmodel_t*)read_lump(&bspheader, fs, 14, sizeof(dmodel_t), &modelCount);
-    unsigned short* leaffaces = (unsigned short*)read_lump(&bspheader, fs, 16, 0, nullptr);
-    plane* splittingPlanes = (plane*)read_lump(&bspheader, fs, 1, 0, nullptr);
+    unsigned short* leaffaces = (unsigned short*)read_lump(&bspheader, fs, 16, sizeof(unsigned short), &leaffaceCount);
+    plane* splittingPlanes = (plane*)read_lump(&bspheader, fs, 1, sizeof(plane), &planeCount);
 
     bspTree* trees = new bspTree[modelCount];
 
     for (int i = 0; i < modelCount; i++) {
         dnode_t* headNode = nodes + models[i].headnode;
 
-        convertTree(trees + i, splittingPlanes, nodes, leafs, clusterMapping, leaffaces, faces, headNode->children[0], headNode->children[1]);
-    }
-
-    int clusterIDMax = 0;
-    for (const auto& clusterMapEntry : clusterMapping) {
-        if (clusterIDMax < clusterMapEntry.first) {
-            clusterIDMax = clusterMapEntry.first;
-        }
-    }
-
-    cluster* clusters = new cluster[clusterIDMax];
-    for (auto& clusterMapEntry : clusterMapping) {
-        clusters[clusterMapEntry.first] = *clusterMapEntry.second;
-        free(clusterMapEntry.second);
+        convertTree(trees + i, splittingPlanes, nodes, leafs, leaffaces, faces, *vis, headNode->children[0], headNode->children[1]);
     }
 
     free(models);
@@ -297,8 +278,6 @@ bsp_parsed* load_bsp(const std::string& file) {
     returnStruct->textureCount = texdataCount;
     returnStruct->bspTrees = trees;
     returnStruct->bspTreeCount = modelCount;
-    returnStruct->clusters = clusters;
-    returnStruct->clusterCount = clusterIDMax;
 
     return returnStruct;
 }

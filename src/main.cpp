@@ -25,6 +25,7 @@
 #include "bsp/bsp_loader.h"
 #include "camera.h"
 #include "bsp/vpk.h"
+#include "bsp/bsp_rendering.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -97,8 +98,16 @@ int main() {
 	std::cout << "Loading: de_train.bsp" << std::endl;
 
 	bsp_parsed* parsed = load_bsp(csgo_folder + "maps/de_train.bsp");
-	bsp_geometry_vulkan bsp_geometry = create_geometry_from_bsp(renderer, parsed);
+	//bsp_rendering_data bsp_rendering = bsp_rendering_prepare(parsed, renderer);
 
+	//std::string gmod_folder = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\GarrysMod\\garrysmod\\";
+	//bsp_parsed* parsed = load_bsp(gmod_folder + "maps\\gm_construct.bsp");
+
+	assert(parsed != nullptr);
+
+	//bsp_rendering_data bsp_rendering = bsp_rendering_prepare(parsed, renderer);
+
+	/*
     vpk_directory* vpk = load_vpk(csgo_folder, "pak01");
 
 	for (int i = 0; i < parsed->textureCount; i++) {
@@ -113,6 +122,7 @@ int main() {
 
 		std::cout << textureName << std::endl;
 	}
+	*/
 
 	camera c;
 	c.position = glm::vec3(-50, -1300, -20);
@@ -130,19 +140,8 @@ int main() {
 		bool metrics = true;
 		ImGui::ShowMetricsWindow(&metrics);
 
-		// Render BSP
-		vkCmdBindPipeline(renderer->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, bsp_geometry.pipeline);
-
-		VkBuffer vertexBuffers[] = { bsp_geometry.vertexBuffer };
-		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(renderer->command_buffer, 0, 1, vertexBuffers, offsets);
-		vkCmdBindIndexBuffer(renderer->command_buffer, bsp_geometry.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
-
 		updateCamera(&c, window);
-		glm::mat4 mvp = calculateViewProjection(c);
-		vkCmdPushConstants(renderer->command_buffer, bsp_geometry.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(mvp), &mvp);
-
-		vkCmdDrawIndexed(renderer->command_buffer, bsp_geometry.maxIndicesCount, 1, 0, 0, 0);
+		//bsp_render(&bsp_rendering, renderer, &c);
 
 		imguivk_endFrame(renderer, &imgui);
 
